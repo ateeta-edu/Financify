@@ -11,31 +11,37 @@ import csv
 import os
 import webbrowser
 
-# --- SAVAGE FINANCIAL REALITY CHECKS ---
+# --- OFFLINE TIP/QUOTE LIST ---
 TIPS_AND_QUOTES = [
-    "You're not broke, you're just terrible at managing money.",
-    "Stop buying coffee. You have a kitchen.",
-    "Do you really need that? No. Put it back.",
-    "Your bank account is screaming for help.",
-    "Rich people stay rich by living like they're broke. You're staying broke by acting rich.",
-    "If you buy things you don't need, soon you will have to sell things you need.",
-    "Savings account: 0. Excuses: 100.",
-    "Financial freedom starts when you stop trying to impress people you don't like.",
-    "A budget is telling your money where to go instead of wondering where it went.",
-    "You can't afford it. Close the tab.",
-    "Your future self is begging you to stop spending."
+    "A budget is telling your money where to go, instead of wondering where it went.",
+    "Do not save what is left after spending; instead, spend what is left after saving.",
+    "Try the '50/30/20' rule: 50% for needs, 30% for wants, 20% for savings.",
+    "Review your subscriptions. Are you still using all of them?",
+    "Set a 'no-spend' day once a week. You might be surprised how much you save!",
+    "Always make a shopping list before you go to the grocery store.",
+    "Brew your coffee at home. It adds up!",
+    "Wait 24 hours before making any large, non-essential purchase.",
+    "The art is not in making money, but in keeping it.",
+    "Pay yourself first: Automatically transfer money to savings on payday.",
+    "Financial freedom is the only road to history.",
+    "Beware of little expenses. A small leak will sink a great ship.",
+    "It's not your salary that makes you rich, it's your spending habits.",
+    "The quickest way to double your money is to fold it over and put it back in your pocket.",
+    "If you buy things you do not need, soon you will have to sell things you do need."
 ]
 
 CATEGORIES = ['Food', 'Transport', 'Rent', 'Utilities', 'Salary', 'Entertainment', 'Shopping', 'Health', 'Education', 'Groceries', 'Other']
+
+# --- COLORS ---
 COLOR_WHITE = '#FFFFFF'
 COLOR_LIGHT_GRAY = '#F5F5F5'
 COLOR_DARK_GRAY = '#333333'
 COLOR_GREEN = '#4CAF50'
 COLOR_RED = '#E74C3C'
 COLOR_BLUE = '#008CBA'
-COLOR_ROYAL_BLUE = '#1565C0' 
+COLOR_PURPLE = '#9B59B6'
 COLOR_ORANGE = '#F39C12'
-
+# Added missing color definition just in case
 CARD_COLOR = '#FFFFFF' 
 
 def smart_date_parse(date_str):
@@ -66,7 +72,7 @@ class MainFrame(wx.Frame):
         self.notebook.AddPage(self.dashboard_panel, "Dashboard")
 
         self.reports_panel = ReportsPanel(self.notebook, self.user_id)
-        self.notebook.AddPage(self.reports_panel, "Reports")
+        self.notebook.AddPage(self.reports_panel, "Reports & Data")
         
         sizer = wx.BoxSizer(wx.VERTICAL)
         sizer.Add(self.notebook, 1, wx.EXPAND | wx.ALL, 10)
@@ -102,25 +108,35 @@ class DashboardPanel(wx.Panel):
         # HEADER
         header_sizer = wx.BoxSizer(wx.VERTICAL)
         
-        # TITLE
+        # --- STABLE TITLE (Standard Text, No Crash) ---
         title = wx.StaticText(self, label="Financify ✨")
         title.SetFont(wx.Font(32, wx.FONTFAMILY_SWISS, wx.FONTSTYLE_NORMAL, wx.FONTWEIGHT_BOLD))
-        title.SetForegroundColour(COLOR_ROYAL_BLUE)
+        title.SetForegroundColour(COLOR_PURPLE)
         
-        # Click Logic for Tips
+        # Manual Click Logic
         title.SetCursor(wx.Cursor(wx.CURSOR_HAND))
-        title.SetToolTip("Click for a new reality check")
         title.Bind(wx.EVT_LEFT_DOWN, self.OnGetAITip)
         
         header_sizer.Add(title, 0, wx.ALIGN_LEFT | wx.BOTTOM, 5)
 
-        # QUOTE TEXT (Button Removed)
         self.quote_text = wx.StaticText(self, label=f"\"{random.choice(TIPS_AND_QUOTES)}\"")
         self.quote_text.SetFont(wx.Font(11, wx.FONTFAMILY_SWISS, wx.FONTSTYLE_ITALIC, wx.FONTWEIGHT_NORMAL))
         self.quote_text.SetForegroundColour(COLOR_DARK_GRAY)
-        self.quote_text.Wrap(600) 
+        self.quote_text.Wrap(800)
         
-        header_sizer.Add(self.quote_text, 0, wx.EXPAND | wx.BOTTOM, 20)
+        # Quote is also clickable
+        self.quote_text.SetCursor(wx.Cursor(wx.CURSOR_HAND))
+        self.quote_text.Bind(wx.EVT_LEFT_DOWN, self.OnGetAITip)
+
+        tip_sizer = wx.BoxSizer(wx.HORIZONTAL)
+        tip_sizer.Add(self.quote_text, 1, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 10)
+        
+        # Optional button if user prefers clicking a button
+        tip_btn = wx.Button(self, label="Get New Tip", size=(100, -1))
+        tip_btn.Bind(wx.EVT_BUTTON, self.OnGetAITip)
+        tip_sizer.Add(tip_btn, 0, wx.ALIGN_CENTER_VERTICAL)
+        
+        header_sizer.Add(tip_sizer, 0, wx.EXPAND | wx.BOTTOM, 20)
         main_sizer.Add(header_sizer, 0, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.TOP, 20)
 
         # CONTENT
@@ -145,23 +161,11 @@ class DashboardPanel(wx.Panel):
         main_sizer.Add(content_sizer, 1, wx.EXPAND | wx.ALL, 20)
         self.SetSizer(main_sizer)
 
-    # [SYLLABUS: Recursion]
-    def calculate_compound_growth(self, principal, rate, years):
-        """Recursive function to predict savings growth."""
-        if years == 0:
-            return principal
-        else:
-            return self.calculate_compound_growth(principal * (1 + rate), rate, years - 1)
-
     def OnGetAITip(self, event):
+        """Picks a random tip from the list."""
         tip = random.choice(TIPS_AND_QUOTES)
         self.quote_text.SetLabel(f"\"{tip}\"")
-        self.quote_text.Wrap(600)
-        
-        # Calling recursive function just to demonstrate it runs
-        projected = self.calculate_compound_growth(1000, 0.05, 5)
-        print(f"[RECURSION DEMO] Projected savings of 1000 at 5% over 5 years: {projected:.2f}")
-        
+        self.quote_text.Wrap(800)
         self.Layout()
 
     def CreateTransactionForm(self, parent):
@@ -287,9 +291,6 @@ class DashboardPanel(wx.Panel):
         panel.SetSizer(v)
         return panel
 
-    def CreateAITipPanel(self, parent):
-        return wx.Panel(parent)
-
     def LoadData(self):
         accounts = db.get_accounts(self.user_id)
         self.default_account_id = accounts[0]['account_id'] if accounts else None
@@ -299,23 +300,15 @@ class DashboardPanel(wx.Panel):
         today = datetime.now()
         month, year = today.month, today.year
         data = db.get_dashboard_numbers(self.user_id, month, year)
-        
         self.budget_ctrl.SetValue(f"{data['budget']:.2f}")
-
-        # [SYLLABUS: Functional Programming - Map, Lambda]
-        raw_values = [data['income'], data['spent'], data['remaining'], data['net']]
-        formatted = list(map(lambda x: f"₹{x:.2f}", raw_values))
-
-        self.income_text.SetLabel(f"Income: {formatted[0]}")
-        self.spent_text.SetLabel(f"Spent: {formatted[1]}")
-        self.remaining_text.SetLabel(f"Left: {formatted[2]}")
-        self.net_text.SetLabel(f"Savings: {formatted[3]}")
-
+        self.income_text.SetLabel(f"Income: ₹{data['income']:.2f}")
+        self.spent_text.SetLabel(f"Spent: ₹{data['spent']:.2f}")
+        self.remaining_text.SetLabel(f"Left: ₹{data['remaining']:.2f}")
+        self.net_text.SetLabel(f"Savings: ₹{data['net']:.2f}")
         if data['remaining'] < 0: self.remaining_text.SetForegroundColour(COLOR_RED)
         else: self.remaining_text.SetForegroundColour(COLOR_BLUE) 
         if data['net'] < 0: self.net_text.SetForegroundColour(COLOR_RED)
         else: self.net_text.SetForegroundColour(COLOR_GREEN)
-        
         chart_data = db.get_expense_data_for_pie_chart(self.user_id, month, year)
         self.pie_axes.clear()
         if not chart_data:
@@ -441,7 +434,6 @@ class ReportsPanel(wx.Panel):
         self.reset_btn.SetForegroundColour(COLOR_RED)
         self.reset_btn.Bind(wx.EVT_BUTTON, self.OnReset)
         toolbar_sizer.Add(self.reset_btn, 0, wx.ALL, 5)
-
         main_sizer.Add(toolbar_sizer, 0, wx.EXPAND | wx.LEFT | wx.RIGHT, 10)
 
         self.trans_list = wx.ListCtrl(self, style=wx.LC_REPORT | wx.LC_HRULES | wx.LC_VRULES)
@@ -622,7 +614,9 @@ class TransactionEditDialog(wx.Dialog):
         for l, c in [("Date", self.date), ("Type", self.type), ("Amount", self.amt), ("Category", self.cat), ("Desc", self.desc)]:
             v.Add(wx.StaticText(p, label=l), 0, wx.TOP|wx.LEFT, 5)
             v.Add(c, 0, wx.EXPAND|wx.ALL, 5)
+            
         self.LoadData()
+        
         b = wx.StdDialogButtonSizer()
         save = wx.Button(p, wx.ID_OK, "Save")
         b.AddButton(save)
