@@ -1,28 +1,12 @@
 import sqlite3
 import hashlib
 import os
-import re  # [SYLLABUS: Regular Expressions module]
 from datetime import datetime
 
-# FORCE DB TO SAVE IN SAME FOLDER
+# FORCE DB LOCATION TO SCRIPT DIRECTORY
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DB_NAME = os.path.join(BASE_DIR, 'financify.db')
 SECRET_SALT = "s0m3_r4nd0m_s4lt_v4lu3" 
-
-# [SYLLABUS: Decorators]
-# A decorator to log database operations to the console
-def db_logger(func):
-    def wrapper(*args, **kwargs):
-        print(f"[LOG] Executing Database Operation: {func.__name__}")
-        return func(*args, **kwargs)
-    return wrapper
-
-# [SYLLABUS: Regular Expressions]
-def validate_password_strength(password):
-    # Regex enforces: At least 4 chars and must contain at least 1 digit
-    if re.search(r"^(?=.*\d).{4,}$", password):
-        return True
-    return False
 
 def get_db_connection():
     conn = sqlite3.connect(DB_NAME)
@@ -83,13 +67,10 @@ def initialize_database():
     conn.commit()
     conn.close()
 
+# --- USER & ACCOUNT ---
 def register_user(username, password):
     if not username or not password: return False, "Fields cannot be empty"
-    
-    # [SYLLABUS: using the Regex function]
-    if not validate_password_strength(password): 
-        return False, "Password too weak (min 4 chars + 1 digit)"
-        
+    if len(password) < 4: return False, "Password too short (min 4)"
     conn = get_db_connection()
     cursor = conn.cursor()
     try:
@@ -136,13 +117,12 @@ def wipe_user_data(user_id):
     conn.commit()
     conn.close()
 
+# --- TRANSACTIONS ---
 def check_transaction_exists(user_id, date, amount, description, conn):
     cursor = conn.cursor()
     cursor.execute("SELECT 1 FROM transactions WHERE user_id=? AND date=? AND amount=? AND description=?", (user_id, date, amount, description))
     return cursor.fetchone() is not None
 
-# [SYLLABUS: Applying the Decorator]
-@db_logger
 def add_transaction(user_id, account_id, date, amount, trans_type, category, description, tags, conn_ext=None):
     try:
         amt = float(amount)
@@ -227,6 +207,7 @@ def get_transactions_by_filter(user_id, search_term=""):
     conn.close()
     return res
 
+# --- DASHBOARD & CHARTS ---
 def get_dashboard_numbers(user_id, month, year):
     conn = get_db_connection()
     cursor = conn.cursor()
@@ -268,6 +249,15 @@ def get_monthly_comparison_data(user_id):
     conn.close()
     return res
 
+def get_recent_transactions(user_id, limit=5):
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute("SELECT date, category, amount, type FROM transactions WHERE user_id = ? ORDER BY date DESC, transaction_id DESC LIMIT ?", (user_id, limit))
+    data = cursor.fetchall()
+    conn.close()
+    return data
+
+# --- BUDGETS ---
 def set_monthly_budget(user_id, month, year, amount):
     conn = get_db_connection()
     cursor = conn.cursor()
@@ -306,17 +296,6 @@ def get_category_budgets_with_spending(user_id, month, year):
     conn.close()
     return res
 
-# [SYLLABUS: Generators]
-def yield_large_transactions(user_id, threshold=1000):
-    """Yields transactions larger than a specific amount one by one."""
-    conn = get_db_connection()
-    cursor = conn.cursor()
-    cursor.execute("SELECT * FROM transactions WHERE user_id = ?", (user_id,))
-    # This 'yield' makes it a generator
-    for row in cursor.fetchall():
-        if abs(row['amount']) > threshold:
-            yield row
-    conn.close()
-
 if __name__ == '__main__':
     initialize_database()
+    
