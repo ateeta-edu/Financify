@@ -2,10 +2,9 @@ import wx
 import database as db
 import main_app
 
-# AESTHETIC LIGHT THEME
 BG_COLOR = '#F5F7FA'
 TEXT_COLOR = '#2C3E50'
-ACCENT_COLOR = '#1565C0' # Royal Blue
+ACCENT_COLOR = '#1565C0' 
 
 class LoginFrame(wx.Frame):
     def __init__(self):
