@@ -3,7 +3,7 @@ import hashlib
 import os
 from datetime import datetime
 
-# FORCE DB LOCATION TO SCRIPT DIRECTORY
+# --- CONFIGURATION ---
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DB_NAME = os.path.join(BASE_DIR, 'financify.db')
 SECRET_SALT = "s0m3_r4nd0m_s4lt_v4lu3" 
@@ -13,22 +13,26 @@ def get_db_connection():
     conn.row_factory = sqlite3.Row
     return conn
 
-def hash_password(password):
-    salted_password = password + SECRET_SALT
-    return hashlib.sha256(salted_password.encode()).hexdigest()
+def hash_data(data):
+    salted = data + SECRET_SALT
+    return hashlib.sha256(salted.encode()).hexdigest()
 
-def verify_password(stored_password, provided_password):
-    return stored_password == hash_password(provided_password)
+def verify_hash(stored_hash, provided_data):
+    return stored_hash == hash_data(provided_data)
 
 def initialize_database():
     conn = get_db_connection()
     cursor = conn.cursor()
     
-    cursor.execute('''CREATE TABLE IF NOT EXISTS users (
-        user_id INTEGER PRIMARY KEY AUTOINCREMENT,
-        username TEXT UNIQUE NOT NULL,
-        password_hash TEXT NOT NULL
-    )''')
+    # Updated Users Table with Security Question
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS users (
+            user_id INTEGER PRIMARY KEY AUTOINCREMENT,
+            username TEXT UNIQUE NOT NULL,
+            password_hash TEXT NOT NULL,
+            security_hash TEXT NOT NULL
+        )
+    ''')
     
     cursor.execute('''CREATE TABLE IF NOT EXISTS accounts (
         account_id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -67,30 +71,85 @@ def initialize_database():
     conn.commit()
     conn.close()
 
-# --- USER & ACCOUNT ---
-def register_user(username, password):
-    if not username or not password: return False, "Fields cannot be empty"
-    if len(password) < 4: return False, "Password too short (min 4)"
+# --- USER FUNCTIONS ---
+
+def register_user(username, password, security_ans):
+    if not username or not password or not security_ans:
+        return False, "All fields are required"
+    if len(password) < 4:
+        return False, "Password too short (min 4)"
+    
     conn = get_db_connection()
     cursor = conn.cursor()
     try:
-        cursor.execute("INSERT INTO users (username, password_hash) VALUES (?, ?)", (username, hash_password(password)))
+        p_hash = hash_data(password)
+        s_hash = hash_data(security_ans.lower().strip()) 
+        
+        cursor.execute("INSERT INTO users (username, password_hash, security_hash) VALUES (?, ?, ?)", 
+                       (username, p_hash, s_hash))
         new_id = cursor.lastrowid
-        cursor.execute("INSERT INTO accounts (user_id, account_name, account_type, current_balance) VALUES (?, ?, ?, ?)", (new_id, 'Checking', 'Checking', 0))
+        
+        cursor.execute("INSERT INTO accounts (user_id, account_name, account_type, current_balance) VALUES (?, ?, ?, ?)", 
+                       (new_id, 'Checking', 'Checking', 0))
         conn.commit()
         return True, "Success"
-    except sqlite3.IntegrityError: return False, "Username taken"
-    finally: conn.close()
+    except sqlite3.IntegrityError:
+        return False, "Username taken"
+    except sqlite3.OperationalError:
+        return False, "Database Error: Please delete 'financify.db' and restart."
+    finally:
+        conn.close()
 
 def login_user(username, password):
     conn = get_db_connection()
     cursor = conn.cursor()
-    cursor.execute("SELECT user_id, password_hash FROM users WHERE username = ?", (username,))
-    user = cursor.fetchone()
+    try:
+        cursor.execute("SELECT user_id, password_hash FROM users WHERE username = ?", (username,))
+        user = cursor.fetchone()
+    except:
+        conn.close()
+        return False, "DB Error. Delete financify.db", None
+        
     conn.close()
-    if user and verify_password(user['password_hash'], password): return True, "Success", user['user_id']
+    
+    if user and verify_hash(user['password_hash'], password):
+        return True, "Success", user['user_id']
     return False, "Invalid credentials", None
 
+def get_username(user_id):
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    try:
+        cursor.execute("SELECT username FROM users WHERE user_id = ?", (user_id,))
+        res = cursor.fetchone()
+        conn.close()
+        return res['username'] if res else "User"
+    except: return "User"
+
+def verify_security_answer(username, answer):
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute("SELECT security_hash FROM users WHERE username = ?", (username,))
+    user = cursor.fetchone()
+    conn.close()
+    
+    if not user: return False
+    return verify_hash(user['security_hash'], answer.lower().strip())
+
+def reset_password(username, new_password):
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    try:
+        new_hash = hash_data(new_password)
+        cursor.execute("UPDATE users SET password_hash = ? WHERE username = ?", (new_hash, username))
+        conn.commit()
+        return True
+    except:
+        return False
+    finally:
+        conn.close()
+
+# --- HELPER FUNCTIONS ---
 def check_and_create_default_account(user_id):
     conn = get_db_connection()
     cursor = conn.cursor()
@@ -117,7 +176,7 @@ def wipe_user_data(user_id):
     conn.commit()
     conn.close()
 
-# --- TRANSACTIONS ---
+# --- TRANSACTION FUNCTIONS ---
 def check_transaction_exists(user_id, date, amount, description, conn):
     cursor = conn.cursor()
     cursor.execute("SELECT 1 FROM transactions WHERE user_id=? AND date=? AND amount=? AND description=?", (user_id, date, amount, description))
@@ -207,7 +266,6 @@ def get_transactions_by_filter(user_id, search_term=""):
     conn.close()
     return res
 
-# --- DASHBOARD & CHARTS ---
 def get_dashboard_numbers(user_id, month, year):
     conn = get_db_connection()
     cursor = conn.cursor()
@@ -257,7 +315,6 @@ def get_recent_transactions(user_id, limit=5):
     conn.close()
     return data
 
-# --- BUDGETS ---
 def set_monthly_budget(user_id, month, year, amount):
     conn = get_db_connection()
     cursor = conn.cursor()
@@ -299,3 +356,4 @@ def get_category_budgets_with_spending(user_id, month, year):
 if __name__ == '__main__':
     initialize_database()
     
+
